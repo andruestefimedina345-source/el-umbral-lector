@@ -1,0 +1,145 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>El Umbral | Lector QR</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7f7f2;
+      color: #26352c;
+      text-align: center;
+      padding: 20px;
+    }
+
+    h1 { color: #a52b32; }
+
+    #reader {
+      max-width: 450px;
+      margin: 20px auto;
+    }
+
+    #result {
+      background: white;
+      padding: 20px;
+      margin: 20px auto;
+      max-width: 450px;
+      border-radius: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    button {
+      background: #a52b32;
+      color: white;
+      border: 0;
+      padding: 15px 22px;
+      border-radius: 8px;
+      font-size: 16px;
+      margin: 8px;
+    }
+
+    .valid { color: #287442; }
+    .invalid { color: #b3262e; }
+  </style>
+</head>
+
+<body>
+  <h1>EL UMBRAL</h1>
+  <p>Control de entradas digitales</p>
+
+  <div id="reader"></div>
+
+  <div id="result">
+    Preparado para escanear.
+  </div>
+
+  <button onclick="startScanner()">Activar cámara</button>
+
+  <script>
+    // REEMPLAZAR POR LA URL DE TU APLICACIÓN DE GOOGLE APPS SCRIPT
+    const API_URL = "PEGAR_URL_DE_APPS_SCRIPT";
+
+    let scanner;
+    let processing = false;
+
+    function showResult(message, status) {
+      const box = document.getElementById("result");
+      box.textContent = message;
+      box.className = status || "";
+    }
+
+    function validateTicket(token) {
+      showResult("Verificando entrada...");
+
+      window.__qrCallback = function(response) {
+        showResult(
+          response.message,
+          response.status === "valid" ? "valid" : "invalid"
+        );
+
+        processing = false;
+      };
+
+      const script = document.createElement("script");
+      const url = new URL(API_URL);
+
+      url.searchParams.set("action", "validate");
+      url.searchParams.set("token", token);
+      url.searchParams.set("callback", "__qrCallback");
+      url.searchParams.set("_", Date.now());
+
+      script.src = url.toString();
+
+      script.onerror = function() {
+        showResult("No se pudo conectar con el servidor.", "invalid");
+        processing = false;
+        script.remove();
+      };
+
+      script.onload = function() {
+        script.remove();
+      };
+
+      document.body.appendChild(script);
+    }
+
+    async function startScanner() {
+      if (processing) return;
+
+      try {
+        if (!scanner) {
+          scanner = new Html5Qrcode("reader");
+        }
+
+        showResult("Solicitando acceso a la cámara...");
+
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: 250 },
+          function(decodedText) {
+            if (processing) return;
+            processing = true;
+            scanner.pause(true);
+            validateTicket(decodedText);
+            setTimeout(() => {
+              processing = false;
+              scanner.resume();
+            }, 4000);
+          }
+        );
+
+        showResult("Cámara activada. Enfocá el QR.");
+      } catch (error) {
+        showResult(
+          "No se pudo abrir la cámara: " + error.message,
+          "invalid"
+        );
+      }
+    }
+  </script>
+</body>
+</html>
